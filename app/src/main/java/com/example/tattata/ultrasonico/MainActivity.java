@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
 
     static final int SAMPLING_RATE = 44100;
     static final int FFT_POINT = 4096;
+    static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
     int bufSize;
     boolean isRecording = false;
     AudioRecord audioRecord;
@@ -42,9 +43,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         chart = findViewById(R.id.chart);
-        YAxis leftaxis = chart.getAxisLeft();
-        leftaxis.setAxisMaxValue(100000);
-        leftaxis.setAxisMinValue(-100000);
+        YAxis leftAxis = chart.getAxisLeft();
+        leftAxis.setAxisMaxValue(100);
+        leftAxis.setAxisMinValue(-200);
         YAxis rightAxis = chart.getAxisRight();
         rightAxis.setEnabled(false);
 
@@ -55,10 +56,10 @@ public class MainActivity extends AppCompatActivity {
         List<LineDataSet> dataSets = new ArrayList<>();
         ArrayList<String> xValues = new ArrayList<>();
         ArrayList<Entry> value = new ArrayList<>();
-        for(int i = 0; i < data.length/2; i+= 10) {
+        for(int i = 0; i < data.length/2; i+=10) {
             xValues.add(String.valueOf((SAMPLING_RATE / (double) FFT_POINT) * (i / 2)));
-            double result = data[i];
-            value.add(new Entry((float)result, i / 10));
+            double result = 20 * Math.log10(data[i] / BASELINE);
+            value.add(new Entry((float)result, i/10));
         }
         LineDataSet valueDataSet = new LineDataSet(value, "sample");
         dataSets.add(valueDataSet);

@@ -35,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         bufSize = AudioRecord.getMinBufferSize(SAMPLING_RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);//ENCODING_PCM_FLOATにしようか
         if(bufSize < FFT_POINT) {
             bufSize = FFT_POINT;
         }
@@ -90,14 +90,14 @@ public class MainActivity extends AppCompatActivity {
                 while (isRecording) {
                     audioRecord.read(buf, 0, buf.length);
 
-                    double d[] = new double[FFT_POINT * 2];
+                    double d[] = new double[FFT_POINT];
                     for(int i = 0; i < FFT_POINT; i++) {
                         d[i] = (double)buf[i];
                     }
-                    fft.realForwardFull(d);
+                    fft.realForward(d);
 
                     //実部と虚部が交互にある。そこから振幅を求める
-                    amp = new double[FFT_POINT];
+                    amp = new double[FFT_POINT/2];
                     for(int i = 0; i < FFT_POINT; i+=2) {
                         amp[i / 2] = Math.abs(d[i]) + Math.abs(d[i + 1]);
                     }

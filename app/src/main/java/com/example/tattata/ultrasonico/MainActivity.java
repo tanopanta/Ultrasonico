@@ -5,6 +5,7 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.YAxis;
@@ -19,9 +20,12 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     static final int SAMPLING_RATE = 44100;
-    static final int FFT_POINT = 4096;
+    static final int FFT_POINT = 8192;
+    static final int FC = 30;
     static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
     static final int DISPLAY_INTERVAL = 1;
+    static final int GET_PEAKS = 3;
+
     int bufSize;
     boolean isRecording = false;
     AudioRecord audioRecord;
@@ -70,7 +74,31 @@ public class MainActivity extends AppCompatActivity {
     public int indexToFrequency(int index) {
         return (int)((SAMPLING_RATE / (double) FFT_POINT) * index);
     }
+    public int frequencyToIndex(int freq) {
+        return (int)(freq / (SAMPLING_RATE / (double) FFT_POINT));
+    }
 
+    public void peak(double[] data, int number) {
+        int[] index = new int[number];
+
+        for(int i = 0; i < data.length-1; i++) {
+            if(data[i] > data[i+1]) {//波の頂点
+                for(int j = 0; j < number; j++) {
+                    if(data[i] > data[index[j]]) {
+                        index[j] = i;
+                        break;
+                    }
+                }
+            }
+        }
+        for(Integer i: index) {
+            if(frequencyToIndex(880)-2 < i && i < frequencyToIndex(880)+2) {
+                Log.d("dadada", "らーーーーーーーーーーーーー");
+            }
+            Log.d("aaaaaadasd", "" + indexToFrequency(i));
+        }
+        Log.d("aaaaaadasd", "-------------");
+    }
     @Override
     protected void onResume() {
         super.onResume();
@@ -101,6 +129,11 @@ public class MainActivity extends AppCompatActivity {
                     for(int i = 0; i < FFT_POINT; i+=2) {
                         amp[i / 2] = Math.abs(d[i]) + Math.abs(d[i + 1]);
                     }
+                    for(int i = 0; i < frequencyToIndex(FC); i++) {
+                        amp[i] = 1;
+                    }
+
+                    peak(amp, GET_PEAKS);
 
                     runOnUiThread(new Runnable() {
                         public void run() {

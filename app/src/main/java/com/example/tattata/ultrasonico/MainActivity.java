@@ -1,11 +1,15 @@
 package com.example.tattata.ultrasonico;
 
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioRecord;
+import android.media.AudioTrack;
 import android.media.MediaRecorder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Toast;
 
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.YAxis;
@@ -20,15 +24,19 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     static final int SAMPLING_RATE = 44100;
+    static final double SAMPLING_PERIOD = 1.0 / SAMPLING_RATE;
     static final int FFT_POINT = 8192;
     static final int FC = 30;
     static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
+    private static final int WAVE_AMP = 8000;
+
     static final int DISPLAY_INTERVAL = 1;
     static final int GET_PEAKS = 3;
 
     int bufSize;
     boolean isRecording = false;
     AudioRecord audioRecord;
+    AudioTrack audioTrack;
     Thread thread;
     LineChart chart;
     DoubleFFT_1D fft;
@@ -53,7 +61,30 @@ public class MainActivity extends AppCompatActivity {
 
         fft = new DoubleFFT_1D(FFT_POINT);
 
+        audioTrack = new AudioTrack(
+                AudioManager.STREAM_MUSIC,
+                SAMPLING_RATE,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufSize,
+                AudioTrack.MODE_STREAM);
+
+        findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                short[] buf = new short[SAMPLING_RATE];
+                mixWave(buf, 880, WAVE_AMP);
+                audioTrack.write(buf, 0, SAMPLING_RATE, AudioTrack.WRITE_NON_BLOCKING);
+            }
+        });
+
     }
+    public void mixWave(short[] buf, int freq, int amp) {
+        for(int i = 0; i < buf.length; i++) {
+            buf[i] += amp * Math.sin(2 * Math.PI * freq * i * SAMPLING_PERIOD);
+        }
+    }
+
     public void display(double[] data) {
         List<LineDataSet> dataSets = new ArrayList<>();
         ArrayList<String> xValues = new ArrayList<>();
@@ -81,8 +112,8 @@ public class MainActivity extends AppCompatActivity {
     public void peak(double[] data, int number) {
         int[] index = new int[number];
 
-        for(int i = 0; i < data.length-1; i++) {
-            if(data[i] > data[i+1]) {//波の頂点
+        for(int i = 1; i < data.length-1; i++) {
+            if(data[i-1] < data[i] && data[i] > data[i+1]) {//波の頂点
                 for(int j = 0; j < number; j++) {
                     if(data[i] > data[index[j]]) {
                         index[j] = i;
@@ -93,7 +124,13 @@ public class MainActivity extends AppCompatActivity {
         }
         for(Integer i: index) {
             if(frequencyToIndex(880)-2 < i && i < frequencyToIndex(880)+2) {
-                Log.d("dadada", "らーーーーーーーーーーーーー");
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        Toast.makeText(getApplicationContext(),
+                                "らーーーーーーーーーーーーー", Toast.LENGTH_SHORT)
+                                .show();
+                    }
+                });
             }
             Log.d("aaaaaadasd", "" + indexToFrequency(i));
         }
@@ -111,6 +148,7 @@ public class MainActivity extends AppCompatActivity {
         audioRecord.startRecording();
         isRecording = true;
 
+        audioTrack.play();
         thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -134,12 +172,13 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     peak(amp, GET_PEAKS);
-
+                    /*
                     runOnUiThread(new Runnable() {
                         public void run() {
                             display(amp);
                         }
                     });
+                    */
                 }
                 // 録音停止
                 audioRecord.stop();
@@ -152,5 +191,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         isRecording = false;
+        if(audioTrack.getPlayState() != AudioTrack.PLAYSTATE_STOPPED) {
+            audioTrack.stop();
+            audioTrack.flush();
+        }
     }
 }

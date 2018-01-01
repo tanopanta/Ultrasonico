@@ -11,11 +11,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
-import com.github.mikephil.charting.charts.LineChart;
-import com.github.mikephil.charting.components.YAxis;
-import com.github.mikephil.charting.data.Entry;
-import com.github.mikephil.charting.data.LineData;
-import com.github.mikephil.charting.data.LineDataSet;
 import org.jtransforms.fft.DoubleFFT_1D;
 
 import java.util.ArrayList;
@@ -30,7 +25,6 @@ public class MainActivity extends AppCompatActivity {
     static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
     private static final int WAVE_AMP = 8000;
 
-    static final int DISPLAY_INTERVAL = 1;
     static final int GET_PEAKS = 3;
 
     int bufSize;
@@ -38,7 +32,6 @@ public class MainActivity extends AppCompatActivity {
     AudioRecord audioRecord;
     AudioTrack audioTrack;
     Thread thread;
-    LineChart chart;
     DoubleFFT_1D fft;
     short buf[];
     double amp[];
@@ -47,17 +40,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         bufSize = AudioRecord.getMinBufferSize(SAMPLING_RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);//ENCODING_PCM_FLOATにしようか
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+
         if(bufSize < FFT_POINT) {
             bufSize = FFT_POINT;
         }
-
-        chart = findViewById(R.id.chart);
-        YAxis leftAxis = chart.getAxisLeft();
-        leftAxis.setAxisMaxValue(100);
-        leftAxis.setAxisMinValue(-200);
-        YAxis rightAxis = chart.getAxisRight();
-        rightAxis.setEnabled(false);
 
         fft = new DoubleFFT_1D(FFT_POINT);
 
@@ -72,9 +59,9 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                short[] buf = new short[SAMPLING_RATE];
+                short[] buf = new short[SAMPLING_RATE/10];
                 mixWave(buf, 880, WAVE_AMP);
-                audioTrack.write(buf, 0, SAMPLING_RATE, AudioTrack.WRITE_NON_BLOCKING);
+                audioTrack.write(buf, 0, SAMPLING_RATE/10);
             }
         });
 
@@ -85,20 +72,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void display(double[] data) {
-        List<LineDataSet> dataSets = new ArrayList<>();
-        ArrayList<String> xValues = new ArrayList<>();
-        ArrayList<Entry> value = new ArrayList<>();
-        for(int i = 0; i < data.length/2; i+=DISPLAY_INTERVAL) {
-            xValues.add(String.valueOf(indexToFrequency(i)));
-            double result = amplitudeToDecibel(data[i]);
-            value.add(new Entry((float)result, i / DISPLAY_INTERVAL));
-        }
-        LineDataSet valueDataSet = new LineDataSet(value, "sample");
-        dataSets.add(valueDataSet);
-        chart.setData(new LineData(xValues, dataSets));
-        chart.invalidate();
-    }
     public double amplitudeToDecibel(double data) {
         return  20 * Math.log10(data / BASELINE);
     }
@@ -153,8 +126,15 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 buf = new short[bufSize];
+                long nowTime = System.currentTimeMillis();
+                long tmpTime = nowTime;
                 while (isRecording) {
+                    nowTime = System.currentTimeMillis();
+                    Log.v("timeime", String.valueOf(nowTime - tmpTime));
+                    tmpTime = nowTime;
+
                     audioRecord.read(buf, 0, buf.length);
+
 
                     double d[] = new double[FFT_POINT];
                     for(int i = 0; i < FFT_POINT; i++) {
@@ -172,13 +152,6 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     peak(amp, GET_PEAKS);
-                    /*
-                    runOnUiThread(new Runnable() {
-                        public void run() {
-                            display(amp);
-                        }
-                    });
-                    */
                 }
                 // 録音停止
                 audioRecord.stop();

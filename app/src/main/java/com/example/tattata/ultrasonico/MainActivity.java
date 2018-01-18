@@ -20,9 +20,9 @@ public class MainActivity extends AppCompatActivity {
 
     static final int SAMPLING_RATE = 44100;
     static final double SAMPLING_PERIOD = 1.0 / SAMPLING_RATE;
-    static final int FFT_POINT = 8192;
+    //static final int FFT_POINT = 8192;
     static final int FC = 30;
-    static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
+    //static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
     private static final int WAVE_AMP = 8000;
 
     static final int GET_PEAKS = 3;
@@ -41,19 +41,24 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         bufSize = AudioRecord.getMinBufferSize(SAMPLING_RATE,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-
-        if(bufSize < FFT_POINT) {
-            bufSize = FFT_POINT;
+        if(SAMPLING_RATE / 10 < bufSize) {
+            Log.v("adasaadada", "bufsizeがおかしくないですか？");
+        } else {
+            bufSize = SAMPLING_RATE / 10;
         }
+        fft = new DoubleFFT_1D(bufSize);
 
-        fft = new DoubleFFT_1D(FFT_POINT);
-
+        int trackBuffSize = AudioTrack.getMinBufferSize(
+                SAMPLING_RATE,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT)
+                * 2;
         audioTrack = new AudioTrack(
                 AudioManager.STREAM_MUSIC,
                 SAMPLING_RATE,
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                bufSize,
+                trackBuffSize,
                 AudioTrack.MODE_STREAM);
 
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
@@ -71,15 +76,16 @@ public class MainActivity extends AppCompatActivity {
             buf[i] += amp * Math.sin(2 * Math.PI * freq * i * SAMPLING_PERIOD);
         }
     }
-
+    /*
     public double amplitudeToDecibel(double data) {
         return  20 * Math.log10(data / BASELINE);
     }
+    */
     public int indexToFrequency(int index) {
-        return (int)((SAMPLING_RATE / (double) FFT_POINT) * index);
+        return (int)((SAMPLING_RATE / (double) bufSize) * index);
     }
     public int frequencyToIndex(int freq) {
-        return (int)(freq / (SAMPLING_RATE / (double) FFT_POINT));
+        return (int)(freq / (SAMPLING_RATE / (double) bufSize));
     }
 
     public void peak(double[] data, int number) {
@@ -136,15 +142,15 @@ public class MainActivity extends AppCompatActivity {
                     audioRecord.read(buf, 0, buf.length);
 
 
-                    double d[] = new double[FFT_POINT];
-                    for(int i = 0; i < FFT_POINT; i++) {
+                    double d[] = new double[bufSize];
+                    for(int i = 0; i < bufSize; i++) {
                         d[i] = (double)buf[i];
                     }
                     fft.realForward(d);
 
                     //実部と虚部が交互にある。そこから振幅を求める
-                    amp = new double[FFT_POINT/2];
-                    for(int i = 0; i < FFT_POINT; i+=2) {
+                    amp = new double[d.length/2];
+                    for(int i = 0; i < d.length; i+=2) {
                         amp[i / 2] = Math.abs(d[i]) + Math.abs(d[i + 1]);
                     }
                     for(int i = 0; i < frequencyToIndex(FC); i++) {

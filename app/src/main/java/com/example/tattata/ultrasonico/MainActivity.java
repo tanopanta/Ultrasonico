@@ -9,6 +9,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.jtransforms.fft.DoubleFFT_1D;
@@ -33,12 +35,18 @@ public class MainActivity extends AppCompatActivity {
     AudioTrack audioTrack;
     Thread thread;
     DoubleFFT_1D fft;
+
+    EditText editText;
+    TextView textViewReceive;
+
     short buf[];
     double amp[];
+    List<Integer> recodeDigit;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         bufSize = AudioRecord.getMinBufferSize(SAMPLING_RATE,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
         if(SAMPLING_RATE / 10 < bufSize) {
@@ -61,12 +69,26 @@ public class MainActivity extends AppCompatActivity {
                 trackBuffSize,
                 AudioTrack.MODE_STREAM);
 
+        final MyTextUtils myTextUtils = new MyTextUtils();
+        editText = findViewById(R.id.editText);
+        textViewReceive = findViewById(R.id.textViewReceive);
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                short[] buf = new short[SAMPLING_RATE/10];
-                mixWave(buf, 880, WAVE_AMP);
-                audioTrack.write(buf, 0, SAMPLING_RATE/10);
+                int[] digitMsg = myTextUtils.textToDigital(editText.getText().toString().trim());
+                for (Integer i:
+                     digitMsg) {
+                    int freq = 0;
+                    short[] buf = new short[SAMPLING_RATE/10];
+                    if(i == 0) {
+                        freq = 880;
+                    } else {
+                        freq = 1046;
+                    }
+                    mixWave(buf, freq, WAVE_AMP);
+                    audioTrack.write(buf, 0, SAMPLING_RATE/10);
+                }
+
             }
         });
 
@@ -89,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void peak(double[] data, int number) {
+        //録音間隔はそのままでfft間隔を狭くすることで同期対策とか？
         int[] index = new int[number];
 
         for(int i = 1; i < data.length-1; i++) {
@@ -101,19 +124,51 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+        boolean detectCode = false;
         for(Integer i: index) {
-            if(frequencyToIndex(880)-2 < i && i < frequencyToIndex(880)+2) {
+            if(frequencyToIndex(1046)-2 < i && i < frequencyToIndex(1046)+2) {
+                Log.d("aaaaaadasd", "1");
+                if(recodeDigit == null) {
+                    recodeDigit = new ArrayList<>();
+                }
+                recodeDigit.add(1);
+                detectCode = true;
+                break;
+            }else if(frequencyToIndex(880)-2 < i && i < frequencyToIndex(880)+2) {
+                Log.d("aaaaaadasd", "0");
+                if(recodeDigit == null) {
+                    recodeDigit = new ArrayList<>();
+                }
+                recodeDigit.add(0);
+                detectCode = true;
+                break;
+                /*
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        Toast.makeText(getApplicationContext(),
-                                "らーーーーーーーーーーーーー", Toast.LENGTH_SHORT)
-                                .show();
+
+                    }
+                });
+                */
+            }
+            //Log.d("aaaaaadasd", "" + indexToFrequency(i));
+        }
+        if(!detectCode && recodeDigit != null) {
+            if(recodeDigit.size() < 5) {
+                recodeDigit = null;
+            } else {
+                final MyTextUtils myTextUtils = new MyTextUtils();
+                final String msg = myTextUtils.DigitalToText(recodeDigit);
+                recodeDigit = null;
+                runOnUiThread(new Runnable() {
+
+                    public void run() {
+                        textViewReceive.setText(msg);
                     }
                 });
             }
-            Log.d("aaaaaadasd", "" + indexToFrequency(i));
+
         }
-        Log.d("aaaaaadasd", "-------------");
+       //Log.d("aaaaaadasd", "-------------");
     }
     @Override
     protected void onResume() {
@@ -132,12 +187,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 buf = new short[bufSize];
-                long nowTime = System.currentTimeMillis();
-                long tmpTime = nowTime;
                 while (isRecording) {
-                    nowTime = System.currentTimeMillis();
-                    Log.v("timeime", String.valueOf(nowTime - tmpTime));
-                    tmpTime = nowTime;
+
 
                     audioRecord.read(buf, 0, buf.length);
 

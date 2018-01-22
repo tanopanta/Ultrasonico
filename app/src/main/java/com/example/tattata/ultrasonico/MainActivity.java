@@ -28,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int WAVE_AMP = 8000;
 
     static final int GET_PEAKS = 3;
+    static final int[] SYN = {1, 0, 0, 1, 1};
 
     int bufSize;
     boolean isRecording = false;
@@ -76,22 +77,26 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 int[] digitMsg = myTextUtils.textToDigital(editText.getText().toString().trim());
-                for (Integer i:
-                     digitMsg) {
-                    int freq = 0;
-                    short[] buf = new short[SAMPLING_RATE/10];
-                    if(i == 0) {
-                        freq = 880;
-                    } else {
-                        freq = 1046;
-                    }
-                    mixWave(buf, freq, WAVE_AMP);
-                    audioTrack.write(buf, 0, SAMPLING_RATE/10);
-                }
-
+                //TODO:ここをスレッドに
+                playAudio(SYN);
+                playAudio(digitMsg);
             }
         });
 
+    }
+    public void playAudio(int[] freqs) {
+        for (Integer i:
+                freqs) {
+            int freq;
+            short[] buf = new short[SAMPLING_RATE/10];
+            if(i == 0) {
+                freq = 880;
+            } else {
+                freq = 1046;
+            }
+            mixWave(buf, freq, WAVE_AMP);
+            audioTrack.write(buf, 0, SAMPLING_RATE/10);
+        }
     }
     public void mixWave(short[] buf, int freq, int amp) {
         for(int i = 0; i < buf.length; i++) {
@@ -127,7 +132,6 @@ public class MainActivity extends AppCompatActivity {
         boolean detectCode = false;
         for(Integer i: index) {
             if(frequencyToIndex(1046)-2 < i && i < frequencyToIndex(1046)+2) {
-                Log.d("aaaaaadasd", "1");
                 if(recodeDigit == null) {
                     recodeDigit = new ArrayList<>();
                 }
@@ -135,7 +139,6 @@ public class MainActivity extends AppCompatActivity {
                 detectCode = true;
                 break;
             }else if(frequencyToIndex(880)-2 < i && i < frequencyToIndex(880)+2) {
-                Log.d("aaaaaadasd", "0");
                 if(recodeDigit == null) {
                     recodeDigit = new ArrayList<>();
                 }
@@ -153,19 +156,31 @@ public class MainActivity extends AppCompatActivity {
             //Log.d("aaaaaadasd", "" + indexToFrequency(i));
         }
         if(!detectCode && recodeDigit != null) {
+            Log.v("asadada", recodeDigit.toString());
             if(recodeDigit.size() < 5) {
                 recodeDigit = null;
-            } else {
-                final MyTextUtils myTextUtils = new MyTextUtils();
-                final String msg = myTextUtils.DigitalToText(recodeDigit);
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            for(int i = 0; i < recodeDigit.size(); i++) {
+                sb.append(recodeDigit.get(i));
+            }
+            int start = sb.indexOf("10011");
+            if(start == -1 || start >= SYN.length * 2) {
+                Log.v("adadad", "見つかりません" + sb);
                 recodeDigit = null;
-                runOnUiThread(new Runnable() {
+                return;
+            }
+            start += SYN.length;
+            final MyTextUtils myTextUtils = new MyTextUtils();
+            final String msg = myTextUtils.DigitalToText(recodeDigit.subList(start, recodeDigit.size()));
+            recodeDigit = null;
+            runOnUiThread(new Runnable() {
 
-                    public void run() {
-                        textViewReceive.setText(msg);
+                public void run() {
+                    textViewReceive.setText(msg);
                     }
                 });
-            }
 
         }
        //Log.d("aaaaaadasd", "-------------");

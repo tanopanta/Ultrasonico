@@ -179,7 +179,7 @@ public class MainActivity extends AppCompatActivity {
                 sb.append(recodeDigit.get(i));
             }
             int start = sb.indexOf("10011");
-            if(start == -1 || start >= SYN.length * 2) {
+            if(start == -1 || start >= SYN.length / 2) {
                 Log.v("adadad", "見つかりません" + sb);
                 recodeDigit = null;
                 return;

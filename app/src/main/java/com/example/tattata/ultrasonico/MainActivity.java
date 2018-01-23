@@ -76,10 +76,23 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                int[] digitMsg = myTextUtils.textToDigital(editText.getText().toString().trim());
+                final int[] digitMsg = myTextUtils.textToDigital(editText.getText().toString().trim());
                 //TODO:ここをスレッドに
-                playAudio(SYN);
-                playAudio(digitMsg);
+
+                Thread thread = new Thread(new Runnable() {
+                    private int[] digits;
+                    @Override
+                    public void run() {
+                        playAudio(SYN);
+                        playAudio(digits);
+                    }
+                    private Runnable setArrays(int[] digits) {
+                        this.digits = digits;
+                        return this;
+                    }
+                }.setArrays(digitMsg));
+                thread.start();
+
             }
         });
 

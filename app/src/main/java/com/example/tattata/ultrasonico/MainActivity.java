@@ -15,6 +15,7 @@ import android.widget.Toast;
 
 import org.jtransforms.fft.DoubleFFT_1D;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +27,7 @@ public class MainActivity extends AppCompatActivity {
     static final int FC = 30;
     //static final double BASELINE = Math.pow(2, 15) * FFT_POINT * 2;//測定可能な最大振幅？ 16bit*FFT*2
     private static final int WAVE_AMP = 8000;
+    private static final short START_PCM_LEVEL = 500;
 
     static final int GET_PEAKS = 3;
     static final int[] SYN = {1, 0, 0, 1, 1};
@@ -43,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
     short buf[];
     double amp[];
     List<Integer> recodeDigit;
+    ArrayDeque<Short> fftBufQueue;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -56,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
             bufSize = SAMPLING_RATE / 10;
         }
         fft = new DoubleFFT_1D(bufSize);
+        fftBufQueue = new ArrayDeque<>();
 
         int trackBuffSize = AudioTrack.getMinBufferSize(
                 SAMPLING_RATE,
@@ -77,7 +81,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 final int[] digitMsg = myTextUtils.textToDigital(editText.getText().toString().trim());
-                //TODO:ここをスレッドに
 
                 Thread thread = new Thread(new Runnable() {
                     private int[] digits;
@@ -219,11 +222,39 @@ public class MainActivity extends AppCompatActivity {
 
 
                     audioRecord.read(buf, 0, buf.length);
+                    int startIndex = -666;
+                    boolean isRecodeEnd = false;
+                    for(int i = 0; i < buf.length; i++) {
+                        if(buf[i] > START_PCM_LEVEL) {
+                            startIndex = i;
+                            break;
+                        }
+                    }
+                    if(startIndex == -666) {
+                        if(recodeDigit != null) {
+                            //受信中
+                            isRecodeEnd = true;
+                        }else {
+                            if(fftBufQueue.size() > 0) {
+                                fftBufQueue.clear();
+                            }
+                            continue;
+                        }
+                    }
+                    if(startIndex < 50) {
+                        //波１個分ぐらいだったら0に
+                        startIndex = 0;
+                    }
 
-
+                    for(int i = startIndex; i < buf.length; i++) {
+                        fftBufQueue.add(buf[i]);
+                    }
+                    if(fftBufQueue.size() < bufSize && !isRecodeEnd) {
+                        continue;
+                    }
                     double d[] = new double[bufSize];
                     for(int i = 0; i < bufSize; i++) {
-                        d[i] = (double)buf[i];
+                        d[i] = fftBufQueue.poll();
                     }
                     fft.realForward(d);
 
